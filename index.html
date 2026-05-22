@@ -476,46 +476,28 @@ function updatePriceBoard() {
 
 /* ── Westmetall scrape ── */
 async function fetchWestmetall() {
-  // Try two CORS proxies in sequence
-  const TARGET = 'https://www.westmetall.com/en/markdaten.php';
-  const PROXIES = [
-    'https://corsproxy.io/?' + TARGET,
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(TARGET),
-    'https://thingproxy.freeboard.io/fetch/' + TARGET,
-  ];
+  // Use Anthropic API with web_search tool to fetch Westmetall prices server-side
+  // This avoids CORS entirely since the fetch happens server-to-server
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 512,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      system: 'You are a metal price fetcher. Fetch the Westmetall LME prices page and extract the Settlement Kasse (cash settlement) prices for Copper, Lead, and Zinc in USD per metric ton. Return ONLY a JSON object with keys cu (number), pb (number), zn (number). No other text, no markdown, no explanation.',
+      messages: [{ role: 'user', content: 'Fetch https://www.westmetall.com/en/markdaten.php and return the LME cash settlement prices for Copper (Cu), Lead (Pb), and Zinc (Zn) in USD per metric ton as JSON.' }]
+    })
+  });
 
-  let html = null;
-  for (const url of PROXIES) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      const text = await res.text();
-      // Verify we got actual Westmetall content (not a proxy error page)
-      if (text.includes('LME_Cu_cash') || text.includes('LME_Pb_cash')) {
-        html = text;
-        break;
-      }
-    } catch(e) { continue; }
-  }
-
-  if (!html) throw new Error('all proxies failed');
-
-  // HTML contains anchor hrefs like: field=LME_Cu_cash">13,427.00</a>
-  // Also matches markdown-style: [13,427.00](...field=LME_Cu_cash...)
-  const parse = (field) => {
-    // Match href pattern: field=LME_Cu_cash">NUMBER
-    let m = html.match(new RegExp('field=' + field + '[^>]*>([\d,]+\.\d+)'));
-    if (m) return parseFloat(m[1].replace(/,/g, ''));
-    // Match markdown link pattern: [NUMBER](url...field=LME_Cu_cash...)
-    m = html.match(new RegExp('\[([\d,]+\.\d+)\]\([^)]*' + field + '[^)]*\)'));
-    if (m) return parseFloat(m[1].replace(/,/g, ''));
-    return null;
-  };
-
-  return {
-    cu: parse('LME_Cu_cash'),
-    pb: parse('LME_Pb_cash'),
-    zn: parse('LME_Zn_cash'),
-  };
+  const data = await res.json();
+  const textBlocks = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  const clean = textBlocks.replace(/```json|```/g, '').trim();
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('no JSON in response');
+  const parsed = JSON.parse(match[0]);
+  if (!parsed.cu && !parsed.pb && !parsed.zn) throw new Error('empty price data');
+  return { cu: parsed.cu || null, pb: parsed.pb || null, zn: parsed.zn || null };
 }
 
 /* ── metals.dev ── */
