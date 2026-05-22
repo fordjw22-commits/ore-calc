@@ -187,21 +187,21 @@ footer a { color: var(--muted); text-decoration: none; }
     <div class="pc-name" style="color:var(--cu);">Copper (Cu)</div>
     <div class="pc-val" style="color:var(--cu);" id="pv-CU">—</div>
     <div class="pc-unit">USD / mt · LME cash</div>
-    <div class="pc-src"><span class="src-wm">westmetall</span></div>
+    <div class="pc-src"><span class="src-md">metals.dev</span></div>
     <div class="pc-ov"><input type="number" placeholder="override" oninput="setOverride('CU',this.value)"/><span class="tag-m" id="om-CU" style="display:none">manual</span></div>
   </div>
   <div class="pc">
     <div class="pc-name" style="color:var(--pb);">Lead (Pb)</div>
     <div class="pc-val" style="color:var(--pb);" id="pv-PB">—</div>
     <div class="pc-unit">USD / mt · LME cash</div>
-    <div class="pc-src"><span class="src-wm">westmetall</span></div>
+    <div class="pc-src"><span class="src-md">metals.dev</span></div>
     <div class="pc-ov"><input type="number" placeholder="override" oninput="setOverride('PB',this.value)"/><span class="tag-m" id="om-PB" style="display:none">manual</span></div>
   </div>
   <div class="pc">
     <div class="pc-name" style="color:var(--zn);">Zinc (Zn)</div>
     <div class="pc-val" style="color:var(--zn);" id="pv-ZN">—</div>
     <div class="pc-unit">USD / mt · LME cash</div>
-    <div class="pc-src"><span class="src-wm">westmetall</span></div>
+    <div class="pc-src"><span class="src-md">metals.dev</span></div>
     <div class="pc-ov"><input type="number" placeholder="override" oninput="setOverride('ZN',this.value)"/><span class="tag-m" id="om-ZN" style="display:none">manual</span></div>
   </div>
   <div class="pc">
@@ -476,28 +476,9 @@ function updatePriceBoard() {
 
 /* ── Westmetall scrape ── */
 async function fetchWestmetall() {
-  // Use Anthropic API with web_search tool to fetch Westmetall prices server-side
-  // This avoids CORS entirely since the fetch happens server-to-server
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 512,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      system: 'You are a metal price fetcher. Fetch the Westmetall LME prices page and extract the Settlement Kasse (cash settlement) prices for Copper, Lead, and Zinc in USD per metric ton. Return ONLY a JSON object with keys cu (number), pb (number), zn (number). No other text, no markdown, no explanation.',
-      messages: [{ role: 'user', content: 'Fetch https://www.westmetall.com/en/markdaten.php and return the LME cash settlement prices for Copper (Cu), Lead (Pb), and Zinc (Zn) in USD per metric ton as JSON.' }]
-    })
-  });
-
-  const data = await res.json();
-  const textBlocks = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-  const clean = textBlocks.replace(/```json|```/g, '').trim();
-  const match = clean.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('no JSON in response');
-  const parsed = JSON.parse(match[0]);
-  if (!parsed.cu && !parsed.pb && !parsed.zn) throw new Error('empty price data');
-  return { cu: parsed.cu || null, pb: parsed.pb || null, zn: parsed.zn || null };
+  // Westmetall blocks CORS — prices now sourced from metals.dev alongside Au/Ag
+  // This function intentionally throws so fetchAll uses metals.dev for all metals
+  throw new Error('use metals.dev');
 }
 
 /* ── metals.dev ── */
@@ -505,7 +486,16 @@ async function fetchMetalsDev(key) {
   const res = await fetch(`https://api.metals.dev/v1/latest?api_key=${encodeURIComponent(key)}&currency=USD&unit=toz`);
   const d   = await res.json();
   if(d.status !== 'success') throw new Error(d.error_message || 'metals.dev error');
-  return { au: d.metals.gold||null, ag: d.metals.silver||null };
+  const m = d.metals;
+  // metals.dev returns LME base metals in USD/mt when unit=toz is set for precious metals
+  // lme_copper, lme_lead, lme_zinc are always in USD/mt regardless of unit param
+  return {
+    au: m.gold        || null,
+    ag: m.silver      || null,
+    cu: m.lme_copper  || null,
+    pb: m.lme_lead    || null,
+    zn: m.lme_zinc    || null,
+  };
 }
 
 /* ── ExchangeRate-API (no key) for ZMW/USD ── */
@@ -544,6 +534,9 @@ async function fetchAll() {
       const md = await fetchMetalsDev(key);
       if(md.au && overrides.AU===null) prices.AU = md.au;
       if(md.ag && overrides.AG===null) prices.AG = md.ag;
+      if(md.cu && overrides.CU===null) prices.CU = md.cu;
+      if(md.pb && overrides.PB===null) prices.PB = md.pb;
+      if(md.zn && overrides.ZN===null) prices.ZN = md.zn;
       mdOk = true;
     } catch(e) { errors.push('metals.dev: '+e.message); }
   }
@@ -571,12 +564,11 @@ async function fetchAll() {
   $('price-ts2').textContent = ts;
 
   const parts = [];
-  if(wmOk) parts.push('base metals live');
-  else parts.push('base metals unavailable');
-  if(key && mdOk) parts.push('Au/Ag live');
-  else if(!key)   parts.push('add key for Au/Ag');
+  if(mdOk) parts.push('all metals live');
+  else if(!key) parts.push('add metals.dev key for prices');
+  else parts.push('metals.dev error');
   if(fxOk) parts.push('ZMW/USD live');
-  setStatus(wmOk||fxOk ? 'live' : 'error', parts.join(' · '));
+  setStatus(mdOk||fxOk ? 'live' : 'error', parts.join(' · '));
 
   $('rbtn').disabled = false;
 }
