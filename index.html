@@ -476,15 +476,45 @@ function updatePriceBoard() {
 
 /* ── Westmetall scrape ── */
 async function fetchWestmetall() {
-  const PROXY  = 'https://api.allorigins.win/raw?url=';
-  const TARGET = encodeURIComponent('https://www.westmetall.com/en/markdaten.php');
-  const res    = await fetch(PROXY + TARGET);
-  const html   = await res.text();
-  const parse  = pat => { const m=html.match(pat); return m ? parseFloat(m[1].replace(/,/g,'')) : null; };
+  // Try two CORS proxies in sequence
+  const TARGET = 'https://www.westmetall.com/en/markdaten.php';
+  const PROXIES = [
+    'https://corsproxy.io/?' + TARGET,
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(TARGET),
+    'https://thingproxy.freeboard.io/fetch/' + TARGET,
+  ];
+
+  let html = null;
+  for (const url of PROXIES) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const text = await res.text();
+      // Verify we got actual Westmetall content (not a proxy error page)
+      if (text.includes('LME_Cu_cash') || text.includes('LME_Pb_cash')) {
+        html = text;
+        break;
+      }
+    } catch(e) { continue; }
+  }
+
+  if (!html) throw new Error('all proxies failed');
+
+  // HTML contains anchor hrefs like: field=LME_Cu_cash">13,427.00</a>
+  // Also matches markdown-style: [13,427.00](...field=LME_Cu_cash...)
+  const parse = (field) => {
+    // Match href pattern: field=LME_Cu_cash">NUMBER
+    let m = html.match(new RegExp('field=' + field + '[^>]*>([\d,]+\.\d+)'));
+    if (m) return parseFloat(m[1].replace(/,/g, ''));
+    // Match markdown link pattern: [NUMBER](url...field=LME_Cu_cash...)
+    m = html.match(new RegExp('\[([\d,]+\.\d+)\]\([^)]*' + field + '[^)]*\)'));
+    if (m) return parseFloat(m[1].replace(/,/g, ''));
+    return null;
+  };
+
   return {
-    cu: parse(/LME_Cu_cash[^>]*>([0-9,]+\.[0-9]+)/),
-    pb: parse(/LME_Pb_cash[^>]*>([0-9,]+\.[0-9]+)/),
-    zn: parse(/LME_Zn_cash[^>]*>([0-9,]+\.[0-9]+)/),
+    cu: parse('LME_Cu_cash'),
+    pb: parse('LME_Pb_cash'),
+    zn: parse('LME_Zn_cash'),
   };
 }
 
