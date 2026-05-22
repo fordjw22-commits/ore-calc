@@ -165,16 +165,7 @@ footer a { color: var(--muted); text-decoration: none; }
   </div>
 </div>
 
-<!-- API key -->
-<div class="api-row" id="api-banner" style="display:none;">
-  <label>METALS.DEV KEY</label>
-  <input type="password" id="apikey" placeholder="Required for Au &amp; Ag only — free at metals.dev" autocomplete="off" oninput="saveKey()"/>
-  <button class="btn" onclick="fetchAll()">connect</button>
-  <div class="api-note">
-    Free key at <a href="https://metals.dev" target="_blank">metals.dev</a> — required for all metal prices (Cu, Pb, Zn, Au, Ag). No credit card needed.
-    &nbsp;·&nbsp; ZMW/USD from <a href="https://www.exchangerate-api.com" target="_blank">ExchangeRate-API</a> (no key, automatic).
-  </div>
-</div>
+
 
 <!-- Metal price board -->
 <div class="sl" style="display:flex;align-items:center;justify-content:space-between;">
@@ -375,6 +366,27 @@ footer a { color: var(--muted); text-decoration: none; }
   <div class="dr dr-strong"><span>Net position</span><span id="r-net">—</span></div>
 </div>
 
+
+<!-- ── Settings section at bottom ── -->
+<div id="settings-section" style="margin-top:2rem;">
+  <button class="btn" id="settings-toggle" onclick="toggleSettings()" style="width:100%;justify-content:center;padding:8px;border-radius:8px;margin-bottom:0;">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke-linecap="round"/></svg>
+    settings
+  </button>
+  <div id="settings-panel" style="display:none; margin-top:8px;">
+    <div class="api-row" id="api-banner">
+      <label>METALS.DEV API KEY</label>
+      <input type="password" id="apikey" placeholder="Paste your free key from metals.dev…" autocomplete="off" oninput="saveKey()" style="flex:1;"/>
+      <button class="btn" onclick="fetchAll()">connect &amp; refresh</button>
+      <div class="api-note">
+        Free key (no credit card) at <a href="https://metals.dev" target="_blank">metals.dev</a> — required for all 5 metal prices.
+        &nbsp;·&nbsp; Key is saved in this browser after first use.
+        &nbsp;·&nbsp; ZMW/USD rate loads automatically, no key needed.
+      </div>
+    </div>
+  </div>
+</div>
+
 </div><!-- /shell -->
 
 <footer style="max-width:1000px;margin:0 auto;padding:1rem 1.5rem 2rem;">
@@ -542,6 +554,7 @@ async function fetchAll() {
       if(md.pb && overrides.PB===null) prices.PB = md.pb;
       if(md.zn && overrides.ZN===null) prices.ZN = md.zn;
       mdOk = true;
+      $('settings-panel').style.display = 'none'; // collapse after success
     } catch(e) { errors.push('metals.dev: '+e.message); }
   }
 
@@ -707,10 +720,20 @@ function recalc() {
 document.addEventListener('DOMContentLoaded', () => {
   $('today-date').textContent = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
   const k = localStorage.getItem(LS_KEY);
-  if(k) $('apikey').value = k;
+  if(k) {
+    $('apikey').value = k;
+    $('settings-panel').style.display = 'none'; // key saved — keep settings collapsed
+  } else {
+    $('settings-panel').style.display = 'block'; // no key yet — open settings
+  }
   selectMetal('CU');
   fetchAll();
 });
+
+function toggleSettings() {
+  const panel = $('settings-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
 </script>
 </body>
 </html>
