@@ -166,14 +166,13 @@ footer a { color: var(--muted); text-decoration: none; }
 </div>
 
 <!-- API key -->
-<div class="api-row">
+<div class="api-row" id="api-banner" style="display:none;">
   <label>METALS.DEV KEY</label>
   <input type="password" id="apikey" placeholder="Required for Au &amp; Ag only — free at metals.dev" autocomplete="off" oninput="saveKey()"/>
   <button class="btn" onclick="fetchAll()">connect</button>
   <div class="api-note">
-    Free key at <a href="https://metals.dev" target="_blank">metals.dev</a> — needed only for Au &amp; Ag lots.
-    &nbsp;·&nbsp; Cu, Pb, Zn from <a href="https://www.westmetall.com/en/markdaten.php" target="_blank">Westmetall</a> (no key).
-    &nbsp;·&nbsp; ZMW/USD from <a href="https://www.exchangerate-api.com" target="_blank">ExchangeRate-API</a> (no key).
+    Free key at <a href="https://metals.dev" target="_blank">metals.dev</a> — required for all metal prices (Cu, Pb, Zn, Au, Ag). No credit card needed.
+    &nbsp;·&nbsp; ZMW/USD from <a href="https://www.exchangerate-api.com" target="_blank">ExchangeRate-API</a> (no key, automatic).
   </div>
 </div>
 
@@ -381,8 +380,7 @@ footer a { color: var(--muted); text-decoration: none; }
 <footer style="max-width:1000px;margin:0 auto;padding:1rem 1.5rem 2rem;">
   <span>Ore &amp; Concentrate Lot Calculator · non-ferrous &amp; precious metals</span>
   <span>
-    LME base metals: <a href="https://www.westmetall.com/en/markdaten.php" target="_blank">westmetall.com</a> ·
-    Au/Ag: <a href="https://metals.dev" target="_blank">metals.dev</a> ·
+    Metal prices: <a href="https://metals.dev" target="_blank">metals.dev</a> ·
     FX: <a href="https://www.exchangerate-api.com" target="_blank">Rates By Exchange Rate API</a>
   </span>
 </footer>
