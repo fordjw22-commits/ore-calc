@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ore Lot Calculator — LME Prices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #0d0f0e;
+  --surf:    #141716;
+  --surf2:   #1c1f1d;
+  --border:  #2a2f2c;
+  --border2: #3a3f3c;
+  --text:    #e8ede9;
+  --muted:   #7a8a7d;
+  --faint:   #3a4039;
+  --cu:  #e8834a; --pb: #a8b8c8; --zn: #8abfa8;
+  --au:  #e8c84a; --ag: #c8d8e8;
+  --pos: #4caf72; --neg: #e05252;
+  --warn: #e8c84a;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+html { font-size: 15px; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.6; min-height: 100vh; }
+.shell { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+/* header */
+.hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 1.25rem; margin-bottom: 1.75rem; flex-wrap: wrap; }
+.hdr-title { font-size: 1.3rem; font-weight: 600; letter-spacing: -0.01em; }
+.hdr-sub { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.7rem; font-family: var(--mono); color: var(--muted); background: var(--surf2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 11px; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex-shrink: 0; }
+.dot-live  { background: var(--pos); box-shadow: 0 0 5px var(--pos); }
+.dot-error { background: var(--neg); }
+.dot-spin  { background: var(--au); animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* price board */
+.price-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 1px; }
+.pc { background: var(--surf); padding: 0.85rem 1rem; }
+.pc-name { font-size: 0.65rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5px; }
+.pc-val  { font-size: 1.4rem; font-weight: 500; font-family: var(--mono); line-height: 1; }
+.pc-unit { font-size: 0.63rem; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+.pc-src  { font-size: 0.6rem; color: var(--faint); font-family: var(--mono); margin-top: 1px; }
+.pc-ov   { margin-top: 8px; display: flex; align-items: center; gap: 5px; }
+.pc-ov input { width: 86px; background: var(--surf2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 0.72rem; padding: 3px 6px; outline: none; }
+.pc-ov input:focus { border-color: var(--border2); }
+.pc-ov input::placeholder { color: var(--faint); }
+.tag-m { font-size: 0.6rem; font-family: var(--mono); background: #2a1f00; color: #c8a84a; padding: 2px 5px; border-radius: 3px; }
+.src-wm { color: #6abf8a; } .src-md { color: #8a9aba; } .src-er { color: #a87aba; }
+
+/* FX panel */
+.fx-panel { background: var(--surf); border: 1px solid var(--border); border-radius: 0 0 10px 10px; padding: 0.85rem 1rem 1rem; margin-bottom: 1.75rem; }
+.fx-top { display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.fx-live-block { display: flex; flex-direction: column; gap: 2px; }
+.fx-live-label { font-size: 0.62rem; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.fx-live-val { font-size: 1.2rem; font-weight: 500; font-family: var(--mono); color: var(--text); }
+.fx-live-sub { font-size: 0.6rem; font-family: var(--mono); color: var(--faint); }
+.fx-spread-block { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fx-spread-block label { font-size: 0.72rem; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+.fx-spread-block input { width: 68px; background: var(--surf2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 0.78rem; padding: 4px 7px; outline: none; text-align: right; }
+.fx-spread-block input:focus { border-color: var(--border2); }
+.fx-rate-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.fx-rate-cell { background: var(--surf2); padding: 0.6rem 0.85rem; }
+.fx-rate-lbl { font-size: 0.62rem; font-family: var(--mono); color: var(--muted); margin-bottom: 3px; }
+.fx-rate-val { font-size: 1rem; font-weight: 500; font-family: var(--mono); }
+.fx-rate-sub { font-size: 0.6rem; font-family: var(--mono); color: var(--faint); margin-top: 1px; }
+.fx-note { font-size: 0.65rem; font-family: var(--mono); color: var(--faint); margin-top: 0.6rem; }
+.fx-note a { color: var(--muted); text-decoration: none; }
+
+/* section label */
+.sl { font-size: 0.65rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); margin-bottom: 0.75rem; }
+
+/* api banner */
+.api-row { background: #141000; border: 1px solid #3a2e00; border-radius: 8px; padding: 0.85rem 1.1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.api-row label { font-size: 0.73rem; font-family: var(--mono); color: #c8a84a; white-space: nowrap; }
+.api-row input { flex: 1; min-width: 180px; background: #0d0f0e; border: 1px solid #3a2e00; border-radius: 5px; color: #e8d89a; font-family: var(--mono); font-size: 0.76rem; padding: 5px 9px; outline: none; }
+.api-row input:focus { border-color: #c8a84a; }
+.api-note { font-size: 0.68rem; color: #6a5a20; flex-basis: 100%; font-family: var(--mono); }
+.api-note a { color: #c8a84a; } .api-note code { background: #2a1f00; padding: 1px 4px; border-radius: 3px; color: #e8d89a; }
+
+/* metal tabs */
+.lot-top { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.metal-tabs { display: flex; gap: 4px; }
+.mt { font-size: 0.72rem; font-family: var(--mono); padding: 5px 14px; border: 1px solid var(--border); border-radius: 20px; cursor: pointer; background: none; color: var(--muted); transition: all 0.15s; }
+.mt:hover { border-color: var(--border2); color: var(--text); }
+.mt.active { color: var(--bg); border-color: transparent; font-weight: 500; }
+.mt[data-m="CU"].active { background: var(--cu); }
+.mt[data-m="PB"].active { background: var(--pb); color: #1a1a1a; }
+.mt[data-m="ZN"].active { background: var(--zn); color: #1a1a1a; }
+.mt[data-m="AU"].active { background: var(--au); color: #1a1a1a; }
+.mt[data-m="AG"].active { background: var(--ag); color: #1a1a1a; }
+
+/* forms */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 2.5rem; margin-bottom: 1.75rem; }
+@media (max-width: 580px) { .form-grid { grid-template-columns: 1fr; } .price-board { grid-template-columns: repeat(3,1fr); } .fx-rate-row { grid-template-columns: 1fr; } }
+.fld { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.fld-lbl { font-size: 0.78rem; color: var(--muted); flex: 1; }
+.fld-r { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.fld input[type="number"] { width: 88px; background: var(--surf2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 0.78rem; padding: 3px 7px; text-align: right; outline: none; }
+.fld input[type="number"]:focus { border-color: var(--border2); }
+.fld-u { font-size: 0.67rem; color: var(--faint); font-family: var(--mono); min-width: 46px; }
+
+/* secondary metals */
+.sec-metals { background: var(--surf); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.1rem; margin-bottom: 1.75rem; }
+.sec-metals-hdr { font-size: 0.65rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.85rem; }
+.sec-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+.sec-item { display: flex; flex-direction: column; gap: 4px; }
+.sec-item label { font-size: 0.68rem; font-family: var(--mono); color: var(--muted); }
+.sec-item input { width: 100%; background: var(--surf2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 0.78rem; padding: 4px 7px; outline: none; text-align: right; }
+.sec-item input:focus { border-color: var(--border2); }
+
+/* results */
+.mr { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 1px; }
+.mr-4 { grid-template-columns: repeat(4,1fr); }
+.mr-3 { grid-template-columns: repeat(3,1fr); }
+.mc { background: var(--surf); padding: 0.85rem 1rem; }
+.mc-lbl { font-size: 0.65rem; font-family: var(--mono); color: var(--muted); margin-bottom: 5px; }
+.mc-val { font-size: 1.25rem; font-weight: 500; font-family: var(--mono); line-height: 1; }
+.mc-u { font-size: 0.62rem; color: var(--faint); font-family: var(--mono); margin-top: 3px; }
+.v-pos { color: var(--pos); } .v-neg { color: var(--neg); }
+
+.db { background: var(--surf); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 1.25rem; }
+.db-hdr { font-size: 0.65rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 0.55rem 1rem; border-bottom: 1px solid var(--border); background: var(--surf2); }
+.dr { display: flex; justify-content: space-between; padding: 7px 1rem; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.dr:last-child { border-bottom: none; }
+.dr span:first-child { color: var(--muted); }
+.dr span:last-child { font-family: var(--mono); font-weight: 500; }
+.dr-strong { border-top: 1px solid var(--border2) !important; }
+.dr-strong span:first-child { color: var(--text); font-weight: 500; }
+.dr-strong span:last-child { font-size: 0.95rem; }
+
+/* btn */
+.btn { background: none; border: 1px solid var(--border2); border-radius: 6px; color: var(--muted); font-family: var(--mono); font-size: 0.7rem; padding: 5px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.15s; }
+.btn:hover { border-color: var(--text); color: var(--text); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn svg { width: 11px; height: 11px; }
+
+footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.68rem; font-family: var(--mono); color: var(--faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+footer a { color: var(--muted); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- Header -->
+<div class="hdr">
+  <div>
+    <div class="hdr-title">Ore &amp; Concentrate Lot Calculator</div>
+    <div class="hdr-sub" id="today-date">—</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:7px;">
+    <div class="pill"><span class="dot" id="sdot"></span><span id="stxt">initialising</span></div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span id="price-ts" style="font-size:0.63rem;font-family:var(--mono);color:var(--faint);"></span>
+      <button class="btn" id="rbtn" onclick="fetchAll()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M13.7 2.3A7 7 0 1 0 14 8" stroke-linecap="round"/><polyline points="14 2 14 6 10 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        refresh
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- API key -->
+<div class="api-row">
+  <label>METALS.DEV KEY</label>
+  <input type="password" id="apikey" placeholder="Required for Au &amp; Ag only — free at metals.dev" autocomplete="off" oninput="saveKey()"/>
+  <button class="btn" onclick="fetchAll()">connect</button>
+  <div class="api-note">
+    Free key at <a href="https://metals.dev" target="_blank">metals.dev</a> — needed only for Au &amp; Ag lots.
+    &nbsp;·&nbsp; Cu, Pb, Zn from <a href="https://www.westmetall.com/en/markdaten.php" target="_blank">Westmetall</a> (no key).
+    &nbsp;·&nbsp; ZMW/USD from <a href="https://www.exchangerate-api.com" target="_blank">ExchangeRate-API</a> (no key).
+  </div>
+</div>
+
+<!-- Metal price board -->
+<div class="sl" style="display:flex;align-items:center;justify-content:space-between;">
+  <span>Official LME settlement prices</span>
+  <span id="price-ts2" style="font-size:0.63rem;letter-spacing:0;text-transform:none;color:var(--faint);"></span>
+</div>
+<div class="price-board">
+  <div class="pc">
+    <div class="pc-name" style="color:var(--cu);">Copper (Cu)</div>
+    <div class="pc-val" style="color:var(--cu);" id="pv-CU">—</div>
+    <div class="pc-unit">USD / mt · LME cash</div>
+    <div class="pc-src"><span class="src-wm">westmetall</span></div>
+    <div class="pc-ov"><input type="number" placeholder="override" oninput="setOverride('CU',this.value)"/><span class="tag-m" id="om-CU" style="display:none">manual</span></div>
+  </div>
+  <div class="pc">
+    <div class="pc-name" style="color:var(--pb);">Lead (Pb)</div>
+    <div class="pc-val" style="color:var(--pb);" id="pv-PB">—</div>
+    <div class="pc-unit">USD / mt · LME cash</div>
+    <div class="pc-src"><span class="src-wm">westmetall</span></div>
+    <div class="pc-ov"><input type="number" placeholder="override" oninput="setOverride('PB',this.value)"/><span class="tag-m" id="om-PB" style="display:none">manual</span></div>
+  </div>
+  <div class="pc">
+    <div class="pc-name" style="color:var(--zn);">Zinc (Zn)</div>
+    <div class="pc-val" style="color:var(--zn);" id="pv-ZN">—</div>
+    <div class="pc-unit">USD / mt · LME cash</div>
+    <div class="pc-src"><span class="src-wm">westmetall</span></div>
+    <div class="pc-ov"><input type="number" placeholder="override" oninput="setOverride('ZN',this.value)"/><span class="tag-m" id="om-ZN" style="display:none">manual</span></div>
+  </div>
+  <div class="pc">
+    <div class="pc-name" style="color:var(--au);">Gold (Au)</div>
+    <div class="pc-val" style="color:var(--au);" id="pv-AU">—</div>
+    <div class="pc-unit">USD / troy oz · spot</div>
+    <div class="pc-src"><span class="src-md">metals.dev</span></div>
+    <div class="pc-ov"><input type="number" placeholder="override" oninput="setOverride('AU',this.value)"/><span class="tag-m" id="om-AU" style="display:none">manual</span></div>
+  </div>
+  <div class="pc">
+    <div class="pc-name" style="color:var(--ag);">Silver (Ag)</div>
+    <div class="pc-val" style="color:var(--ag);" id="pv-AG">—</div>
+    <div class="pc-unit">USD / troy oz · spot</div>
+    <div class="pc-src"><span class="src-md">metals.dev</span></div>
+    <div class="pc-ov"><input type="number" placeholder="override" oninput="setOverride('AG',this.value)"/><span class="tag-m" id="om-AG" style="display:none">manual</span></div>
+  </div>
+</div>
+
+<!-- ZMW/USD FX panel (attached below price board) -->
+<div class="fx-panel">
+  <div class="fx-top">
+    <div class="fx-live-block">
+      <div class="fx-live-label">ZMW / USD mid-market <span class="src-er" style="font-size:0.6rem;font-family:var(--mono);" id="fx-src-tag">exchangerate-api</span></div>
+      <div class="fx-live-val" id="fx-mid-display">—</div>
+      <div class="fx-live-sub" id="fx-updated">fetching…</div>
+    </div>
+    <div class="fx-spread-block">
+      <label>Bank spread</label>
+      <input type="number" id="fx-spread" value="2.0" step="0.1" min="0" max="10" oninput="updateFxRates()"/>
+      <span style="font-size:0.72rem;color:var(--muted);font-family:var(--mono);">%</span>
+    </div>
+    <div style="flex:1;min-width:180px;">
+      <div style="font-size:0.62rem;font-family:var(--mono);color:var(--muted);margin-bottom:4px;">Override mid-rate (if known)</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="fx-override-input" placeholder="e.g. 18.85" step="0.01" style="width:90px;background:var(--surf2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:0.78rem;padding:4px 7px;outline:none;" oninput="onFxOverride()"/>
+        <span style="font-size:0.65rem;color:var(--muted);font-family:var(--mono);">ZMW per USD</span>
+        <span class="tag-m" id="fx-manual-tag" style="display:none;">manual</span>
+      </div>
+    </div>
+  </div>
+  <div class="fx-rate-row">
+    <div class="fx-rate-cell">
+      <div class="fx-rate-lbl">Bank buy rate (USD → ZMW)</div>
+      <div class="fx-rate-val" id="fx-buy">—</div>
+      <div class="fx-rate-sub">Bank buys USD from you at this rate</div>
+    </div>
+    <div class="fx-rate-cell" style="border-left:1px solid var(--border);border-right:1px solid var(--border);">
+      <div class="fx-rate-lbl">Mid-market rate</div>
+      <div class="fx-rate-val" id="fx-mid">—</div>
+      <div class="fx-rate-sub">Used for lot calculations</div>
+    </div>
+    <div class="fx-rate-cell">
+      <div class="fx-rate-lbl">Bank sell rate (ZMW → USD)</div>
+      <div class="fx-rate-val" id="fx-sell">—</div>
+      <div class="fx-rate-sub">Bank sells USD to you at this rate</div>
+    </div>
+  </div>
+  <div class="fx-note">
+    Mid-rate from <a href="https://www.exchangerate-api.com" target="_blank">ExchangeRate-API</a> (free, no key) · updated daily ·
+    spread estimated — verify with your bank (Stanbic, Zanaco, etc.) before settling ·
+    <a href="https://www.boz.zm/markets-securities/boz-exchange-rates" target="_blank">Bank of Zambia official rates</a>
+  </div>
+</div>
+
+<!-- Metal selector -->
+<div class="sl">Lot — primary metal</div>
+<div class="lot-top">
+  <div class="metal-tabs">
+    <button class="mt active" data-m="CU" onclick="selectMetal('CU')">Copper</button>
+    <button class="mt" data-m="PB" onclick="selectMetal('PB')">Lead</button>
+    <button class="mt" data-m="ZN" onclick="selectMetal('ZN')">Zinc</button>
+    <button class="mt" data-m="AU" onclick="selectMetal('AU')">Gold</button>
+    <button class="mt" data-m="AG" onclick="selectMetal('AG')">Silver</button>
+  </div>
+</div>
+
+<!-- Lot inputs -->
+<div class="form-grid">
+  <div>
+    <div class="fld"><span class="fld-lbl">Wet weight</span><div class="fld-r"><input type="number" id="wet-wt" value="300" min="0" oninput="recalc()"/><span class="fld-u">wmt</span></div></div>
+    <div class="fld"><span class="fld-lbl">Moisture (H₂O)</span><div class="fld-r"><input type="number" id="h2o" value="2" step="0.1" oninput="recalc()"/><span class="fld-u">%</span></div></div>
+    <div class="fld"><span class="fld-lbl">Primary assay <span id="primary-label" style="font-family:var(--mono);font-size:0.72rem;color:var(--cu);">(Cu)</span></span><div class="fld-r"><input type="number" id="p-assay" value="10.67" step="0.01" oninput="recalc()"/><span class="fld-u" id="p-assay-unit">%</span></div></div>
+    <div class="fld">
+      <span class="fld-lbl">Payability <span id="pay-formula-hint" style="font-size:0.63rem;font-family:var(--mono);color:var(--faint);">(70 + (assay − 8)) / 100</span></span>
+      <div class="fld-r">
+        <input type="number" id="pct-pay" style="background:var(--bg);color:var(--muted);cursor:not-allowed;" readonly/>
+        <span class="fld-u">%</span>
+      </div>
+    </div>
+    <div class="fld"><span class="fld-lbl" style="padding-left:0.75rem;">↳ Base payability</span><div class="fld-r"><input type="number" id="pay-base" value="70" step="1" oninput="recalc()"/><span class="fld-u">%</span></div></div>
+    <div class="fld"><span class="fld-lbl" style="padding-left:0.75rem;">↳ Assay threshold</span><div class="fld-r"><input type="number" id="pay-threshold" value="8" step="0.1" oninput="recalc()"/><span class="fld-u">%</span></div></div>
+  </div>
+  <div>
+    <div class="fld"><span class="fld-lbl">Treatment charge (T/C)</span><div class="fld-r"><input type="number" id="tc" value="0" oninput="recalc()"/><span class="fld-u">USD/dmt</span></div></div>
+    <div class="fld"><span class="fld-lbl">Refining charge (R/C)</span><div class="fld-r"><input type="number" id="rc" value="0" oninput="recalc()"/><span class="fld-u">USD/dmt</span></div></div>
+    <div class="fld"><span class="fld-lbl">Ore purchase price</span><div class="fld-r"><input type="number" id="ore-price" value="9530" oninput="recalc()"/><span class="fld-u">ZMW/t</span></div></div>
+    <div class="fld">
+      <span class="fld-lbl">FX rate used in calc <span id="fx-which" style="font-size:0.65rem;font-family:var(--mono);color:var(--faint);">(mid)</span></span>
+      <div class="fld-r"><input type="number" id="zmw-calc-rate" value="18.60" step="0.01" readonly style="background:var(--bg);color:var(--muted);cursor:not-allowed;" /><span class="fld-u">ZMW/$</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Secondary metals -->
+<div class="sec-metals">
+  <div class="sec-metals-hdr">Secondary / byproduct metal credits — leave 0 if not present</div>
+  <div class="sec-grid">
+    <div class="sec-item" id="sec-CU"><label>Cu credit (%)</label><input type="number" id="s-CU" value="0" step="0.01" oninput="recalc()" placeholder="0"/></div>
+    <div class="sec-item" id="sec-PB"><label>Pb credit (%)</label><input type="number" id="s-PB" value="0" step="0.01" oninput="recalc()" placeholder="0"/></div>
+    <div class="sec-item" id="sec-ZN"><label>Zn credit (%)</label><input type="number" id="s-ZN" value="0" step="0.01" oninput="recalc()" placeholder="0"/></div>
+    <div class="sec-item" id="sec-AU"><label>Au credit (g/t)</label><input type="number" id="s-AU" value="0" step="0.1" oninput="recalc()" placeholder="0"/></div>
+    <div class="sec-item" id="sec-AG"><label>Ag credit (g/t)</label><input type="number" id="s-AG" value="0" step="0.1" oninput="recalc()" placeholder="0"/></div>
+  </div>
+</div>
+
+<!-- Freight & Costs -->
+<div class="sl">Freight &amp; costs</div>
+<div class="form-grid">
+  <div>
+    <div class="fld"><span class="fld-lbl">Mine ops (crush, wash, labor)</span><div class="fld-r"><input type="number" id="mine-ops" value="230.9" step="0.5" oninput="recalc()"/><span class="fld-u">ZMW/t</span></div></div>
+    <div class="fld"><span class="fld-lbl">Inland freight (to port)</span><div class="fld-r"><input type="number" id="fr1" value="1425" oninput="recalc()"/><span class="fld-u">ZMW/t</span></div></div>
+    <div class="fld"><span class="fld-lbl">Port handling</span><div class="fld-r"><input type="number" id="fr2" value="693.5" step="0.5" oninput="recalc()"/><span class="fld-u">ZMW/t</span></div></div>
+  </div>
+  <div>
+    <div class="fld"><span class="fld-lbl">Ocean freight (CIF destination)</span><div class="fld-r"><input type="number" id="fr3" value="855" oninput="recalc()"/><span class="fld-u">ZMW/t</span></div></div>
+    <div class="fld"><span class="fld-lbl">Export clearance (ZRA)</span><div class="fld-r"><input type="number" id="zra" value="200" oninput="recalc()"/><span class="fld-u">ZMW/t</span></div></div>
+    <div class="fld"><span class="fld-lbl">SGS / assay costs</span><div class="fld-r"><input type="number" id="sgs" value="373" oninput="recalc()"/><span class="fld-u">ZMW/t</span></div></div>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="sl" style="margin-top:0.25rem;">Results</div>
+<div style="margin-bottom:1.25rem;">
+  <div class="mr mr-4" style="margin-bottom:1px;">
+    <div class="mc"><div class="mc-lbl">Dry weight</div><div class="mc-val" id="r-dmt">—</div><div class="mc-u">dmt</div></div>
+    <div class="mc"><div class="mc-lbl">Primary metal content</div><div class="mc-val" id="r-content">—</div><div class="mc-u" id="r-content-u">mt</div></div>
+    <div class="mc"><div class="mc-lbl">CIF gross value / dmt</div><div class="mc-val" id="r-cif">—</div><div class="mc-u">USD / dmt</div></div>
+    <div class="mc"><div class="mc-lbl">All-in cost / dmt</div><div class="mc-val" id="r-cost">—</div><div class="mc-u">USD / dmt</div></div>
+  </div>
+  <div class="mr mr-3">
+    <div class="mc"><div class="mc-lbl">100% lot value</div><div class="mc-val" id="r-lotval">—</div><div class="mc-u">USD</div></div>
+    <div class="mc"><div class="mc-lbl">P/L per dmt</div><div class="mc-val" id="r-pnl-dmt">—</div><div class="mc-u">USD / dmt</div></div>
+    <div class="mc"><div class="mc-lbl">P/L for the lot</div><div class="mc-val" id="r-pnl-lot">—</div><div class="mc-u">USD</div></div>
+  </div>
+</div>
+
+<div class="db">
+  <div class="db-hdr">Value build — per dmt (USD)</div>
+  <div class="dr"><span id="prim-val-lbl">Primary Cu value</span><span id="r-prim-val">—</span></div>
+  <div class="dr" id="byp-row-CU" style="display:none"><span>Cu byproduct credit</span><span id="r-byp-CU">—</span></div>
+  <div class="dr" id="byp-row-PB" style="display:none"><span>Pb byproduct credit</span><span id="r-byp-PB">—</span></div>
+  <div class="dr" id="byp-row-ZN" style="display:none"><span>Zn byproduct credit</span><span id="r-byp-ZN">—</span></div>
+  <div class="dr" id="byp-row-AU" style="display:none"><span>Au byproduct credit</span><span id="r-byp-AU">—</span></div>
+  <div class="dr" id="byp-row-AG" style="display:none"><span>Ag byproduct credit</span><span id="r-byp-AG">—</span></div>
+  <div class="dr"><span>Less T/C + R/C</span><span id="r-tcrc">—</span></div>
+  <div class="dr dr-strong"><span>Gross CIF / dmt</span><span id="r-cif2">—</span></div>
+  <div class="dr"><span>Ore purchase cost</span><span id="b-ore">—</span></div>
+  <div class="dr"><span>Mine ops</span><span id="b-mine">—</span></div>
+  <div class="dr"><span>Inland + ocean freight</span><span id="b-freight">—</span></div>
+  <div class="dr"><span>Export + SGS</span><span id="b-export">—</span></div>
+  <div class="dr dr-strong"><span>Total all-in cost / dmt</span><span id="b-total">—</span></div>
+</div>
+
+<div class="db">
+  <div class="db-hdr">P/L split &amp; provisional values</div>
+  <div class="dr"><span>Lusaka share (~33%)</span><span id="r-lusaka">—</span></div>
+  <div class="dr"><span>London / Beijing share (~67%)</span><span id="r-london">—</span></div>
+  <div class="dr"><span>London / Beijing annualised (×8 lots/yr)</span><span id="r-annual">—</span></div>
+  <div class="dr dr-strong"><span>Provisional purchase value</span><span id="r-prov-buy">—</span></div>
+  <div class="dr"><span>Provisional sale value</span><span id="r-prov-sell">—</span></div>
+  <div class="dr"><span>Total expenses</span><span id="r-expenses">—</span></div>
+  <div class="dr dr-strong"><span>Net position</span><span id="r-net">—</span></div>
+</div>
+
+</div><!-- /shell -->
+
+<footer style="max-width:1000px;margin:0 auto;padding:1rem 1.5rem 2rem;">
+  <span>Ore &amp; Concentrate Lot Calculator · non-ferrous &amp; precious metals</span>
+  <span>
+    LME base metals: <a href="https://www.westmetall.com/en/markdaten.php" target="_blank">westmetall.com</a> ·
+    Au/Ag: <a href="https://metals.dev" target="_blank">metals.dev</a> ·
+    FX: <a href="https://www.exchangerate-api.com" target="_blank">Rates By Exchange Rate API</a>
+  </span>
+</footer>
+
+<script>
+const LS_KEY = 'ore_calc_apikey_v3';
+
+const METALS = {
+  CU: { label:'Copper', unit:'mt',  assayUnit:'%',   assayScale: v=>v/100,     color:'var(--cu)' },
+  PB: { label:'Lead',   unit:'mt',  assayUnit:'%',   assayScale: v=>v/100,     color:'var(--pb)' },
+  ZN: { label:'Zinc',   unit:'mt',  assayUnit:'%',   assayScale: v=>v/100,     color:'var(--zn)' },
+  AU: { label:'Gold',   unit:'toz', assayUnit:'g/t', assayScale: v=>v/31.1035, color:'var(--au)' },
+  AG: { label:'Silver', unit:'toz', assayUnit:'g/t', assayScale: v=>v/31.1035, color:'var(--ag)' },
+};
+const SEC_METALS = ['CU','PB','ZN','AU','AG'];
+
+const prices    = { CU:null, PB:null, ZN:null, AU:null, AG:null };
+const overrides = { CU:null, PB:null, ZN:null, AU:null, AG:null };
+let fxMidLive   = null;   // live mid ZMW per USD
+let fxOverride  = null;   // manual override
+let activeMetal = 'CU';
+
+const $  = id => document.getElementById(id);
+const gf = id => parseFloat($(id).value) || 0;
+const usd = (n,d=0) => isNaN(n)||!isFinite(n) ? '—' : '$'+n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const eff = m => overrides[m] !== null ? overrides[m] : prices[m];
+
+function effectiveFxMid() {
+  return fxOverride !== null ? fxOverride : (fxMidLive || gf('zmw-calc-rate'));
+}
+
+function setStatus(s, msg) {
+  const d=$('sdot'), t=$('stxt');
+  d.className='dot';
+  if(s==='live')  d.classList.add('dot-live');
+  if(s==='error') d.classList.add('dot-error');
+  if(s==='spin')  d.classList.add('dot-spin');
+  t.textContent=msg;
+}
+
+function saveKey() {
+  const k=$('apikey').value.trim();
+  if(k) localStorage.setItem(LS_KEY,k);
+}
+
+function setOverride(metal, val) {
+  const v = parseFloat(val);
+  overrides[metal] = isNaN(v) ? null : v;
+  $('om-'+metal).style.display = overrides[metal]!==null ? 'inline':'none';
+  updatePriceBoard();
+  recalc();
+}
+
+function onFxOverride() {
+  const v = parseFloat($('fx-override-input').value);
+  fxOverride = isNaN(v) ? null : v;
+  $('fx-manual-tag').style.display = fxOverride !== null ? 'inline' : 'none';
+  $('fx-which').textContent = fxOverride !== null ? '(manual)' : '(mid)';
+  updateFxRates();
+  recalc();
+}
+
+/* ── FX rate display ── */
+function updateFxRates() {
+  const mid    = effectiveFxMid();
+  const spread = gf('fx-spread') / 100;
+  // Bank buy rate: bank buys USD from customer → customer gets fewer ZMW → lower rate
+  const buy    = mid * (1 - spread / 2);
+  // Bank sell rate: bank sells USD to customer → customer pays more ZMW → higher rate
+  const sell   = mid * (1 + spread / 2);
+
+  $('fx-mid-display').textContent = fxMidLive ? mid.toFixed(4) + ' ZMW' : '—';
+  $('fx-mid').textContent  = mid.toFixed(4);
+  $('fx-buy').textContent  = buy.toFixed(4);
+  $('fx-sell').textContent = sell.toFixed(4);
+  $('zmw-calc-rate').value = mid.toFixed(4);
+  recalc();
+}
+
+function updatePriceBoard() {
+  const fmt = { CU: v=>'$'+Math.round(v).toLocaleString(),
+                PB: v=>'$'+Math.round(v).toLocaleString(),
+                ZN: v=>'$'+Math.round(v).toLocaleString(),
+                AU: v=>'$'+v.toFixed(2),
+                AG: v=>'$'+v.toFixed(2) };
+  for(const m of Object.keys(METALS)) {
+    const v = eff(m);
+    $(('pv-'+m)).textContent = v ? fmt[m](v) : '—';
+  }
+}
+
+/* ── Westmetall scrape ── */
+async function fetchWestmetall() {
+  const PROXY  = 'https://api.allorigins.win/raw?url=';
+  const TARGET = encodeURIComponent('https://www.westmetall.com/en/markdaten.php');
+  const res    = await fetch(PROXY + TARGET);
+  const html   = await res.text();
+  const parse  = pat => { const m=html.match(pat); return m ? parseFloat(m[1].replace(/,/g,'')) : null; };
+  return {
+    cu: parse(/LME_Cu_cash[^>]*>([0-9,]+\.[0-9]+)/),
+    pb: parse(/LME_Pb_cash[^>]*>([0-9,]+\.[0-9]+)/),
+    zn: parse(/LME_Zn_cash[^>]*>([0-9,]+\.[0-9]+)/),
+  };
+}
+
+/* ── metals.dev ── */
+async function fetchMetalsDev(key) {
+  const res = await fetch(`https://api.metals.dev/v1/latest?api_key=${encodeURIComponent(key)}&currency=USD&unit=toz`);
+  const d   = await res.json();
+  if(d.status !== 'success') throw new Error(d.error_message || 'metals.dev error');
+  return { au: d.metals.gold||null, ag: d.metals.silver||null };
+}
+
+/* ── ExchangeRate-API (no key) for ZMW/USD ── */
+async function fetchFx() {
+  const res  = await fetch('https://open.er-api.com/v6/latest/USD');
+  const d    = await res.json();
+  if(d.result !== 'success') throw new Error('FX fetch failed');
+  const zmw  = d.rates['ZMW'];
+  if(!zmw) throw new Error('ZMW not in response');
+  const updated = d.time_last_update_utc
+    ? new Date(d.time_last_update_utc).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})
+    : 'today';
+  return { zmw, updated };
+}
+
+/* ── orchestrator ── */
+async function fetchAll() {
+  setStatus('spin','fetching…');
+  $('rbtn').disabled = true;
+  let wmOk=false, mdOk=false, fxOk=false, errors=[];
+
+  // 1. Westmetall
+  try {
+    const wm = await fetchWestmetall();
+    if(wm.cu && overrides.CU===null) prices.CU = wm.cu;
+    if(wm.pb && overrides.PB===null) prices.PB = wm.pb;
+    if(wm.zn && overrides.ZN===null) prices.ZN = wm.zn;
+    wmOk = !!(wm.cu||wm.pb||wm.zn);
+  } catch(e) { errors.push('Westmetall unavailable'); }
+
+  // 2. metals.dev (Au, Ag)
+  const key = ($('apikey').value||'').trim() || localStorage.getItem(LS_KEY);
+  if(key) {
+    localStorage.setItem(LS_KEY, key);
+    try {
+      const md = await fetchMetalsDev(key);
+      if(md.au && overrides.AU===null) prices.AU = md.au;
+      if(md.ag && overrides.AG===null) prices.AG = md.ag;
+      mdOk = true;
+    } catch(e) { errors.push('metals.dev: '+e.message); }
+  }
+
+  // 3. ExchangeRate-API (ZMW/USD) — no key needed
+  try {
+    const fx = await fetchFx();
+    if(fxOverride === null) {
+      fxMidLive = fx.zmw;
+      $('fx-updated').textContent = 'mid-rate as of ' + fx.updated;
+      $('fx-src-tag').textContent = 'exchangerate-api';
+    }
+    fxOk = true;
+  } catch(e) {
+    errors.push('FX: '+e.message);
+    $('fx-updated').textContent = 'could not fetch — enter manually';
+  }
+
+  updatePriceBoard();
+  updateFxRates();
+
+  const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  const ts  = `updated ${now}`;
+  $('price-ts').textContent  = ts;
+  $('price-ts2').textContent = ts;
+
+  const parts = [];
+  if(wmOk) parts.push('base metals live');
+  else parts.push('base metals unavailable');
+  if(key && mdOk) parts.push('Au/Ag live');
+  else if(!key)   parts.push('add key for Au/Ag');
+  if(fxOk) parts.push('ZMW/USD live');
+  setStatus(wmOk||fxOk ? 'live' : 'error', parts.join(' · '));
+
+  $('rbtn').disabled = false;
+}
+
+/* ── metal selector ── */
+function selectMetal(m) {
+  activeMetal = m;
+  document.querySelectorAll('.mt').forEach(b => b.classList.toggle('active', b.dataset.m===m));
+  const cfg = METALS[m];
+  $('primary-label').textContent = `(${m})`;
+  $('primary-label').style.color = cfg.color;
+  $('p-assay-unit').textContent  = cfg.assayUnit;
+  const defaults = {
+    CU: {assay:'10.67', base:'70', thresh:'8'},
+    PB: {assay:'45.00', base:'95', thresh:'0'},
+    ZN: {assay:'50.00', base:'85', thresh:'0'},
+    AU: {assay:'5.00',  base:'90', thresh:'0'},
+    AG: {assay:'150.0', base:'90', thresh:'0'},
+  };
+  $('p-assay').value      = defaults[m].assay;
+  $('pay-base').value     = defaults[m].base;
+  $('pay-threshold').value= defaults[m].thresh;
+  // Update formula hint label
+  const isSliding = m === 'CU';
+  $('pay-formula-hint').textContent = isSliding
+    ? '(' + defaults[m].base + ' + (assay − ' + defaults[m].thresh + ')) / 100'
+    : 'fixed at ' + defaults[m].base + '%';
+  SEC_METALS.forEach(sm => { $('sec-'+sm).style.display = sm===m ? 'none' : ''; });
+  recalc();
+}
+
+/* ── core calc ── */
+function recalc() {
+  const m     = activeMetal;
+  const cfg   = METALS[m];
+  const price = eff(m);
+  const fx    = effectiveFxMid();
+  if(!price || !fx) return;
+
+  const wetWt   = gf('wet-wt');
+  const h2o     = gf('h2o') / 100;
+  const pAssay  = gf('p-assay');
+  // D24 formula: payability = (base + (assay - threshold)) / 100
+  // For non-Cu metals threshold is 0, base is fixed payability
+  const payBase   = gf('pay-base');
+  const payThresh = gf('pay-threshold');
+  const calcPay   = (payBase + (pAssay - payThresh)) / 100;
+  const pctPay    = Math.max(0, Math.min(1, calcPay));  // clamp 0-100%
+  $('pct-pay').value = (pctPay * 100).toFixed(2);
+  const tc      = gf('tc');
+  const rc      = gf('rc');
+  const oreP    = gf('ore-price');
+  const mineOps = gf('mine-ops');
+  const fr1     = gf('fr1');
+  const fr2     = gf('fr2');
+  const fr3     = gf('fr3');
+  const zra     = gf('zra');
+  const sgs     = gf('sgs');
+
+  const dmt     = wetWt * (1 - h2o);
+  const scaled  = cfg.assayScale(pAssay);
+  const content = dmt * scaled;
+  const primVal = price * scaled * pctPay;
+
+  let bypTotal = 0;
+  const bypVals = {};
+  for(const sm of SEC_METALS) {
+    if(sm===m) { bypVals[sm]=0; continue; }
+    const sp = eff(sm);
+    const sa = gf('s-'+sm);
+    if(!sp||sa===0) { bypVals[sm]=0; continue; }
+    bypVals[sm]  = sp * METALS[sm].assayScale(sa) * pctPay;
+    bypTotal    += bypVals[sm];
+  }
+
+  const cifPerDmt   = primVal + bypTotal - tc - rc;
+  const lotVal      = cifPerDmt * dmt;
+  const zmwToUsd    = 1 / fx;
+  const orePriceUsd = oreP     * zmwToUsd;
+  const mineUsd     = mineOps  * zmwToUsd;
+  const freightUsd  = (fr1+fr2+fr3) * zmwToUsd;
+  const exportUsd   = (zra+sgs)* zmwToUsd;
+  const totalCost   = orePriceUsd + mineUsd + freightUsd + exportUsd;
+  const pnlDmt      = cifPerDmt - totalCost;
+  const pnlLot      = pnlDmt * dmt;
+  const lusaka      = pnlLot * 0.33;
+  const london      = pnlLot * 0.67;
+  const annual      = london * 8;
+  const provBuy     = totalCost * dmt;
+  const provSell    = cifPerDmt * dmt;
+  const expenses    = (mineUsd+freightUsd+exportUsd) * dmt;
+  const net         = provSell - provBuy - expenses;
+  const pc          = v => v>=0 ? 'v-pos' : 'v-neg';
+
+  $('r-content-u').textContent = m==='AU'||m==='AG' ? 'troy oz' : 'mt';
+  $('prim-val-lbl').textContent = `Primary ${cfg.label} value`;
+
+  $('r-dmt').textContent     = dmt.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
+  $('r-content').textContent = content.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  $('r-cif').textContent     = usd(cifPerDmt,2);
+  $('r-cost').textContent    = usd(totalCost,2);
+  $('r-lotval').textContent  = usd(lotVal);
+
+  const pdEl=$('r-pnl-dmt'), plEl=$('r-pnl-lot');
+  pdEl.textContent=usd(pnlDmt,2); pdEl.className='mc-val '+pc(pnlDmt);
+  plEl.textContent=usd(pnlLot);   plEl.className='mc-val '+pc(pnlLot);
+
+  $('r-prim-val').textContent = usd(primVal,2);
+  for(const sm of SEC_METALS) {
+    const row=$('byp-row-'+sm);
+    if(sm===m||bypVals[sm]===0){row.style.display='none';continue;}
+    row.style.display='flex';
+    $('r-byp-'+sm).textContent=usd(bypVals[sm],2);
+  }
+  $('r-tcrc').textContent     = usd(-(tc+rc),2);
+  $('r-cif2').textContent     = usd(cifPerDmt,2);
+  $('b-ore').textContent      = usd(orePriceUsd,2);
+  $('b-mine').textContent     = usd(mineUsd,2);
+  $('b-freight').textContent  = usd(freightUsd,2);
+  $('b-export').textContent   = usd(exportUsd,2);
+  $('b-total').textContent    = usd(totalCost,2);
+  $('r-lusaka').textContent   = usd(lusaka);
+  $('r-london').textContent   = usd(london);
+  $('r-annual').textContent   = usd(annual);
+  $('r-prov-buy').textContent = usd(provBuy);
+  $('r-prov-sell').textContent= usd(provSell);
+  $('r-expenses').textContent = usd(expenses);
+  const rn=$('r-net'); rn.textContent=usd(net); rn.className=pc(net);
+}
+
+/* ── init ── */
+document.addEventListener('DOMContentLoaded', () => {
+  $('today-date').textContent = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const k = localStorage.getItem(LS_KEY);
+  if(k) $('apikey').value = k;
+  selectMetal('CU');
+  fetchAll();
+});
+</script>
+</body>
+</html>
