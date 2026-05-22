@@ -487,14 +487,20 @@ async function fetchMetalsDev(key) {
   const d   = await res.json();
   if(d.status !== 'success') throw new Error(d.error_message || 'metals.dev error');
   const m = d.metals;
-  // metals.dev returns LME base metals in USD/mt when unit=toz is set for precious metals
-  // lme_copper, lme_lead, lme_zinc are always in USD/mt regardless of unit param
+  // metals.dev returns ALL metals in USD/troy oz — convert base metals to USD/mt via x32150
+  // LME 3-month symbol names (confirmed from metals.dev docs):
+  //   copper -> "lme_copper", lead -> "lme_lead", zinc -> "lme_zinc"
+  // If those are null, fall back to spot symbols: copper, lead, zinc
+  const toMt = v => v ? v * 32150 : null;
+  const cuRaw = m.lme_copper || m.copper || null;
+  const pbRaw = m.lme_lead   || m.lead   || null;
+  const znRaw = m.lme_zinc   || m.zinc   || null;
   return {
-    au: m.gold        || null,
-    ag: m.silver      || null,
-    cu: m.lme_copper  || null,
-    pb: m.lme_lead    || null,
-    zn: m.lme_zinc    || null,
+    au: m.gold   || null,
+    ag: m.silver || null,
+    cu: toMt(cuRaw),
+    pb: toMt(pbRaw),
+    zn: toMt(znRaw),
   };
 }
 
